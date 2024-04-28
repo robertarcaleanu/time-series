@@ -1,14 +1,26 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+
+import conf
 
 # Replace with your desired URL
-url = "https://www.example.com"
+URL = "https://www.aena.es/es/estadisticas/informes-mensuales.html?anio="
+years_range = list(range(2014, 2024))
+
+download_directory = "C:/Users/rober/OneDrive/Escriptori/DataSets/Time-Series/time-series/data"
+chrome_options = Options()
+chrome_options.add_experimental_option("prefs", {
+    "download.default_directory": download_directory
+})
 
 # Initialize the webdriver (Chrome in this case)
-driver = webdriver.Chrome()
+driver = webdriver.Chrome(executable_path=conf.CHROME_DRIVER_PATH)
 
 # Open the URL
-driver.get(url)
+for year in years_range:
+    url = f"{URL}{year}"
+    driver.get(url)
 
 #  List all elements (might be overwhelming for complex pages)
 # all_elements = driver.find_elements_by_tag_name("*")

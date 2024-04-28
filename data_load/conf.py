@@ -1,0 +1,2 @@
+CHROME_DRIVER_PATH = "C:/Users/rober/OneDrive/Escriptori/DataSets/Time-Series/time-series/driver/chromedriver.exe"
+# CHROME_DRIVER_PATH = "C:/Users/rober/OneDrive/Escriptori/DataSets/Time-Series/time-series/data_load"
