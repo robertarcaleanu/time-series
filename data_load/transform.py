@@ -34,58 +34,126 @@ def rename_files() -> pd.DataFrame:
 
         parts = file_mod.split("_")
 
-        for part in parts:
-            if part.lower() in list(month_names.keys()):
-                month = part
-            elif part.isdigit() and len(part) == 4:
-                year = int(part)
+        if len(parts) > 3:
+            for part in parts:
+                if part.lower() in list(month_names.keys()):
+                    month = part
+                elif part.isdigit() and len(part) == 4:
+                    year = int(part)
 
-        extension = parts[-1]
-        file_name = f"{month}_{year}.{extension}"
+            extension = parts[-1]
+            file_name = f"{month}-{year}.{extension}"
 
-        # Rename file with new file name
-        try:
-            os.rename(f"data/test/{file}", f"data/test/{file_name}")
-            df = clean_report(path=f"data/test/{file_name}")
-            df["Year"] = year
-            df["Month"] = month_names[month]
-            all_data = pd.concat([all_data, df])
-        except:
-            print(f"Error renaming file {file}")
-
-    all_data = all_data.drop_duplicates(subset=["Aeropuerto", "Year", "Month"])
+            # Rename file with new file name
+            try:
+                os.rename(f"data/test/{file}", f"data/test/{file_name}")
+                df = clean_report(path=f"data/test/{file_name}", month=month)
+                df["Year"] = year
+                df["Month"] = month_names[month]
+                all_data = pd.concat([all_data, df])
+            except Exception as e:
+                print(f"Error renaming file {file} - {e}")
+    try:
+        all_data = all_data.drop_duplicates(subset=["Aeropuerto", "Year", "Month"])
+        all_data = all_data.sort_values(by=["Year", "Month"])
+    except:
+        print("Error dropping duplicates")
 
     return all_data
 
 
 # Combine all files into a dataframe
-def clean_report(path: str) -> pd.DataFrame:
+def clean_report(path: str, month: str) -> pd.DataFrame:
     """This function cleans the report and returns a dataframe
 
     Args:
         path (str): path to the excel file
+        month (str): month of the report
 
     Returns:
         pd.DataFrame: cleaned dataframe
     """
-    df = pd.read_excel(path, header=7)
+    hidden = False
+    try:
+        df = pd.read_excel(path, header=7)
+        if df.shape[0] < 10:
+            sheets = pd.read_excel(path, None)
+            sheets = list(sheets.keys())
+            sheet_name = [s for s in sheets if ("tráfico" in s.lower() or "trafico" in s.lower() or month in s.lower())]
+            hidden = True
+    except:
+        # The sheet it's not the first
+        sheets = pd.read_excel(path, None)
+        sheets = list(sheets.keys())
+        sheet_name = [s for s in sheets if ("tráfico" in s.lower() or "trafico" in s.lower() or month in s.lower())]
+        df = pd.read_excel(path, sheet_name=sheet_name[0], header=7)
+        hidden = True
+    
+
+    if hidden:
+        header = 5
+        while "aeropuertos" not in [str(col).lower().replace("\n", "") for col in df.columns]:
+            df = pd.read_excel(path, sheet_name=sheet_name[0], header=header)
+            header += 1
+    else:
+        header = 5
+        while "aeropuertos" not in [str(col).lower().replace("\n", "") for col in df.columns]:
+            df = pd.read_excel(path, header=header)
+            header += 1
+
     unnamed_cols = [col for col in df.columns if col.lower().startswith("unnamed")]
 
     df = df.drop(unnamed_cols, axis=1)
 
     # Remove rows
-    df = df.dropna(subset=["\nAeropuertos"])
-    df = df.dropna(subset=["\nTotal"])
-    df = df[~df["\nAeropuertos"].str.lower().str.contains("total")]
+    df.columns = [col.lower().replace("\n", "") for col in df.columns]
+    df = df.dropna(subset=["aeropuertos"])
+    df = df.dropna(subset=["total"])
+    df = df[~df["aeropuertos"].str.lower().str.contains("total")]
 
-    pax = df.iloc[:, [0, 1]]
+    indices = [index for index, element in enumerate(df.columns) if "aeropuertos" in element]
+
+    pax = df.iloc[:, [indices[0], indices[0] + 1]]
     pax.columns = ["Aeropuerto", "Pax"]
-    op = df.iloc[:, [3, 4]]
+    pax["Aeropuerto"] = pax["Aeropuerto"].str.replace(r'[()*]', '', regex=True)
+    pax["Aeropuerto"] = pax["Aeropuerto"].str.strip()
+
+    op = df.iloc[:, [indices[1], indices[1] + 1]]
     op.columns = ["Aeropuerto", "OP"]
-    merc = df.iloc[:, [6, 7]]
+    op["Aeropuerto"] = op["Aeropuerto"].str.replace(r'[()*]', '', regex=True)
+    op["Aeropuerto"] = op["Aeropuerto"].str.strip()
+
+    merc = df.iloc[:, [indices[2], indices[2] + 1]]
     merc.columns = ["Aeropuerto", "Merc"]
+    merc["Aeropuerto"] = merc["Aeropuerto"].str.replace(r'[()*]', '', regex=True)
+    merc["Aeropuerto"] = merc["Aeropuerto"].str.strip()
 
     clean_df = pd.merge(pax, op, on="Aeropuerto", how="left")
     clean_df = pd.merge(clean_df, merc, on="Aeropuerto", how="left")
 
     return clean_df
+
+
+def check_missing_data(df: pd.DataFrame) -> list:
+    """This function checks for missing data in the dataframe.
+
+    Args:
+        df (pd.DataFrame): dataframe to check
+    """
+    missing_data = df.copy()
+    # missing_data = all_data.copy()
+    missing_data["date"] = missing_data["Year"].astype(str) + "-" + missing_data["Month"].astype(str)
+    
+    year_range = list(range(2004, 2025))
+    month_range = list(range(1, 13))
+
+    expected_data = []
+    for year in year_range:
+        for month in month_range:
+            date = str(year) + "-" + str(month)
+            expected_data.append(date)
+
+    expected_data = expected_data[:-9]  # Remove last 9 months because have only until march 2024
+    missing_month = set(expected_data) - set(missing_data["date"])
+    
+    return sorted(missing_month)
