@@ -56,6 +56,13 @@ def rename_files() -> pd.DataFrame:
     try:
         all_data = all_data.drop_duplicates(subset=["Aeropuerto", "Year", "Month"])
         all_data = all_data.sort_values(by=["Year", "Month"])
+        all_data.loc[all_data["Pax"] == "---", "Pax"] = 0
+        all_data["Pax"] = all_data["Pax"].astype(float)
+        all_data.loc[all_data["OP"] == "---", "OP"] = 0
+        all_data["OP"] = all_data["OP"].astype(float)
+        all_data.loc[all_data["Merc"] == "---", "Merc"] = 0
+        all_data["Merc"] = all_data["Merc"].astype(float)
+
     except:
         print("Error dropping duplicates")
 
@@ -164,14 +171,68 @@ def format_airport_name(df: pd.DataFrame) -> pd.DataFrame:
     """
     map_airport_names = {
         "ALGECIRAS /HELIPUERTO": "ALGECIRAS-HELIPUERTO",
-        "ALICANTE": "",
-        "ALICANTE-ELCHE": "",
-        "ALICANTE-ELCHE MIGUEL HDEZ.": "",
-        "ALICANTE-ELCHE MIGUEL HERNANDEZ": "",
+        "ALICANTE": "ALICANTE-ELCHE",
+        "ALICANTE-ELCHE MIGUEL HDEZ.": "ALICANTE-ELCHE",
+        "ALICANTE-ELCHE MIGUEL HERNANDEZ": "ALICANTE-ELCHE",
         "ALMERÍA": "ALMERIA",
-        
+        "BARCELONA-EL PRAT": "BARCELONA",
+        "BARCELONA-EL PRAT J.T.": "BARCELONA",
+        "CEUTA /HELIPUERTO": "CEUTA-HELIPUERTO",
+        "CÓRDOBA": "CORDOBA",
+        "FGL GRANADA-JAÉN": "FGL GRANADA-JAEN",
+        "GRANADA": "FGL GRANADA-JAEN",
+        "GIRONA": "GIRONA-COSTA BRAVA",
+        "LANZAROTE CÉSAR MANRIQUE": "LANZAROTE",
+        "LANZAROTE-CESAR MANRIQUE": "LANZAROTE",
+        "LANZAROTE-CÉSAR MANRIQUE": "LANZAROTE",
+        "LEÓN": "LEON",
+        "MADRID-BARAJAS": "ADOLFO SUÁREZ MADRID-BARAJAS",
+        "MALAGA-COSTA DEL SOL": "MALAGA",
+        "MÁLAGA-COSTA DEL SOL": "MALAGA",
+        "SAN SEBASTIÁN": "SAN SEBASTIAN",
+        "SANTIAGO-ROSALÍA DE CASTRO": "SANTIAGO",
+        "SEVE BALLESTEROS-SANTANDER": "SANTANDER",
+        "TENERIFE NORTE-C. LA LAGUNA": "TENERIFE NORTE",
+        "TENERIFE NORTE-CIUDAD LA LAGUNA": "TENERIFE NORTE",
+        "TENERIFE-NORTE": "TENERIFE NORTE",
+        "TENERIFE-SUR": "TENERIFE SUR",
+        "MURCIA-SAN JAVIER": "AEROPUERTO INTL. REGIÓN MURCIA"
     }
     # df = all_data.copy()
-    df["Aeropuerto"] = df["Aeropuerto"].str.replace(r'[()*]', '', regex=True)
-    df["Aeropuerto"] = df["Aeropuerto"].str.strip()
+    df["Aeropuerto"] = df["Aeropuerto"].map(map_airport_names).fillna(df["Aeropuerto"])
+    df = df[df["Aeropuerto"] != "T O T A L"]
+
+    return df
+
+def add_missing_data(df: pd.DataFrame, missing_months: list) -> pd.DataFrame:
+    """This function adds missing data to the dataframe.
+
+    Args:
+        df (pd.DataFrame): dataframe to add missing data
+        missing_months (list): list of missing months
+    """
+    for month in missing_months:
+        year = int(month.split("-")[0])
+        month = int(month.split("-")[1])
+
+        # Get list airports
+        airp = df[(df["Year"] == year) & (df["Month"] == month + 1)][["Aeropuerto"]]
+        airp["Year"] = year
+        airp["Month"] = month
+
+        # Merge with previous year
+        airp = pd.merge(airp,
+                        df[(df["Year"] == year - 1) & (df["Month"] == month)][["Aeropuerto", "Pax", "OP", "Merc"]],
+                        how="left", on="Aeropuerto")
+        # Merge with next year
+        airp = pd.merge(airp,
+                        df[(df["Year"] == year + 1) & (df["Month"] == month)][["Aeropuerto", "Pax", "OP", "Merc"]],
+                        how="left", on="Aeropuerto", suffixes=("_prev", "_next"))
+        airp["Pax"] = round((airp["Pax_prev"] + airp["Pax_next"]) / 2, 0)
+        airp["OP"] = round((airp["OP_prev"] + airp["OP_next"]) / 2, 0)
+        airp["Merc"] = round((airp["Merc_prev"] + airp["Merc_next"]) / 2, 0)
+        airp = airp[['Aeropuerto', 'Pax', 'OP', 'Merc', 'Year', 'Month']]
+
+        df = pd.concat([df, airp])
+
     return df
