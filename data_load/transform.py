@@ -61,7 +61,6 @@ def rename_files() -> pd.DataFrame:
 
     return all_data
 
-
 # Combine all files into a dataframe
 def clean_report(path: str, month: str) -> pd.DataFrame:
     """This function cleans the report and returns a dataframe
@@ -133,7 +132,6 @@ def clean_report(path: str, month: str) -> pd.DataFrame:
 
     return clean_df
 
-
 def check_missing_data(df: pd.DataFrame) -> list:
     """This function checks for missing data in the dataframe.
 
@@ -157,3 +155,23 @@ def check_missing_data(df: pd.DataFrame) -> list:
     missing_month = set(expected_data) - set(missing_data["date"])
     
     return sorted(missing_month)
+
+def format_airport_name(df: pd.DataFrame) -> pd.DataFrame:
+    """This function formats the airport name in the dataframe.
+
+    Args:
+        df (pd.DataFrame): dataframe to format
+    """
+    map_airport_names = {
+        "ALGECIRAS /HELIPUERTO": "ALGECIRAS-HELIPUERTO",
+        "ALICANTE": "",
+        "ALICANTE-ELCHE": "",
+        "ALICANTE-ELCHE MIGUEL HDEZ.": "",
+        "ALICANTE-ELCHE MIGUEL HERNANDEZ": "",
+        "ALMERÍA": "ALMERIA",
+        
+    }
+    # df = all_data.copy()
+    df["Aeropuerto"] = df["Aeropuerto"].str.replace(r'[()*]', '', regex=True)
+    df["Aeropuerto"] = df["Aeropuerto"].str.strip()
+    return df
