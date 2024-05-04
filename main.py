@@ -25,6 +25,8 @@ def main():
     except Exception as e:
         logging.error("Missing months data has not been added: {}".format(e))
 
+    missing_months = check_missing_data(all_data)
+    len(missing_months)
     # Store data in DDBB
     try:
         logging.info("Data stored in database successfully!")
